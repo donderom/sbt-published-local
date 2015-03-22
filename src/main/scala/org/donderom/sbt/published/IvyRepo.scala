@@ -5,31 +5,44 @@ import scala.util.matching.Regex
 import sbt._
 import sbt.std.TaskStreams
 
-object IvyRepo {
-  case class IvyArtifact(scalaVersion: String, version: String) {
-    override def toString: String = s"$scalaVersion: $version"
+class IvyRepo(name: String, org: String, ivyPaths: IvyPaths, sbtPlugin: Boolean, streams: TaskStreams[_]) {
+  def publishedLocal { artifacts foreach print }
+
+  val projectHome: File = {
+    val ivyHome = ivyPaths.ivyHome getOrElse (Path.userHome / ".ivy2")
+    val basePath = ivyHome / "local" / org
+    if (sbtPlugin) basePath / name else basePath
   }
 
-  def publishedLocal(name: String, org: String, ivyPaths: IvyPaths, streams: TaskStreams[_]): Unit = {
-    implicit val log = streams.log
-    val scalaVersionRegex = (name + "_(\\d\\.\\d{1,2}+\\z)").r
-    for {
-      scalaVersionDir <- projectHome(ivyPaths, org).listFiles
-      versionDir <- scalaVersionDir.listFiles
-    } print(IvyArtifact(scalaVersion(scalaVersionRegex, scalaVersionDir.getName), versionDir.getName))
-  }
+  val versionRegexSuffix = "_(\\d\\.\\d{1,2}+\\z)"
 
-  def print(artifact: IvyArtifact)(implicit log: Logger): Unit =
-    log.info(artifact.toString)
+  def versionRegex(prefix: String): Regex = (prefix + versionRegexSuffix).r
 
-  def scalaVersion(regex: Regex, dirName: String): String =
-    regexGroup(regex, dirName) getOrElse "?"
+  def print(artifact: IvyArtifact): Unit = streams.log.info(artifact.toString)
+
+  def version(prefix: String, dirName: String): String =
+    regexGroup(versionRegex(prefix), dirName) getOrElse "?"
 
   def regexGroup(regex: Regex, text: String): Option[String] =
     for (regex(group) <- regex findFirstIn text) yield group
 
-  def projectHome(ivyPaths: IvyPaths, org: String): File = {
-    val ivyHome = ivyPaths.ivyHome getOrElse (Path.userHome / ".ivy2")
-    ivyHome / "local" / org
-  }
+  def artifacts: List[IvyArtifact] = if (sbtPlugin) pluginArtifacts else libraryArtifacts
+
+  def libraryArtifacts: List[IvyArtifact] =
+    for {
+      scalaVerDir <- projectHome.files
+      versionDir <- scalaVerDir.files
+    } yield IvyArtifact(version(name, scalaVerDir.name), versionDir.name)
+
+  def pluginArtifacts: List[IvyArtifact] =
+    for {
+      scalaDir <- projectHome.files
+      sbtDir <- scalaDir.files
+      versionDir <- sbtDir.files
+    } yield IvyArtifact(version("scala", scalaDir.name), versionDir.name, Some(version("sbt", sbtDir.name)))
+}
+
+object IvyRepo {
+  def publishedLocal(name: String, org: String, ivyPaths: IvyPaths, sbtPlugin: Boolean, streams: TaskStreams[_]): Unit =
+    new IvyRepo(name, org, ivyPaths, sbtPlugin, streams).publishedLocal
 }
