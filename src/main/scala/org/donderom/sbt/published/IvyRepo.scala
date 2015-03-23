@@ -5,7 +5,7 @@ import scala.util.matching.Regex
 import sbt._
 import sbt.std.TaskStreams
 
-class IvyRepo(name: String, org: String, ivyPaths: IvyPaths, sbtPlugin: Boolean, streams: TaskStreams[_]) {
+class IvyRepo(name: String, org: String, ivyPaths: IvyPaths, sbtPlugin: Boolean, log: Logger) {
   def publishedLocal { artifacts foreach print }
 
   val projectHome: File = {
@@ -18,7 +18,7 @@ class IvyRepo(name: String, org: String, ivyPaths: IvyPaths, sbtPlugin: Boolean,
 
   def versionRegex(prefix: String): Regex = (prefix + versionRegexSuffix).r
 
-  def print(artifact: IvyArtifact): Unit = streams.log.info(artifact.toString)
+  def print(artifact: IvyArtifact): Unit = log.info(artifact.toString)
 
   def version(prefix: String, dirName: String): String =
     regexGroup(versionRegex(prefix), dirName) getOrElse "?"
@@ -44,5 +44,5 @@ class IvyRepo(name: String, org: String, ivyPaths: IvyPaths, sbtPlugin: Boolean,
 
 object IvyRepo {
   def publishedLocal(name: String, org: String, ivyPaths: IvyPaths, sbtPlugin: Boolean, streams: TaskStreams[_]): Unit =
-    new IvyRepo(name, org, ivyPaths, sbtPlugin, streams).publishedLocal
+    new IvyRepo(name, org, ivyPaths, sbtPlugin, streams.log).publishedLocal
 }
