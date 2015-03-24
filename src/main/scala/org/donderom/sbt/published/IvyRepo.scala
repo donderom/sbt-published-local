@@ -8,33 +8,33 @@ import sbt.std.TaskStreams
 class IvyRepo(name: String, org: String, ivyPaths: IvyPaths, sbtPlugin: Boolean, log: Logger) {
   def publishedLocal { artifacts foreach print }
 
-  val projectHome: File = {
+  def artifacts: List[IvyArtifact] = if (sbtPlugin) pluginArtifacts else libraryArtifacts
+
+  private val projectHome: File = {
     val ivyHome = ivyPaths.ivyHome getOrElse (Path.userHome / ".ivy2")
     val basePath = ivyHome / "local" / org
     if (sbtPlugin) basePath / name else basePath
   }
 
-  val versionRegexSuffix = "_(\\d\\.\\d{1,2}+\\z)"
+  private val versionRegexSuffix = "_(\\d\\.\\d{1,2}+\\z)"
 
-  def versionRegex(prefix: String): Regex = (prefix + versionRegexSuffix).r
+  private def versionRegex(prefix: String): Regex = (prefix + versionRegexSuffix).r
 
-  def print(artifact: IvyArtifact): Unit = log.info(artifact.toString)
+  private def print(artifact: IvyArtifact): Unit = log.info(artifact.toString)
 
-  def version(prefix: String, dirName: String): String =
+  private def version(prefix: String, dirName: String): String =
     regexGroup(versionRegex(prefix), dirName) getOrElse "?"
 
-  def regexGroup(regex: Regex, text: String): Option[String] =
+  private def regexGroup(regex: Regex, text: String): Option[String] =
     for (regex(group) <- regex findFirstIn text) yield group
 
-  def artifacts: List[IvyArtifact] = if (sbtPlugin) pluginArtifacts else libraryArtifacts
-
-  def libraryArtifacts: List[IvyArtifact] =
+  private def libraryArtifacts: List[IvyArtifact] =
     for {
       scalaVerDir <- projectHome.files
       versionDir <- scalaVerDir.files
     } yield IvyArtifact(version(name, scalaVerDir.name), versionDir.name)
 
-  def pluginArtifacts: List[IvyArtifact] =
+  private def pluginArtifacts: List[IvyArtifact] =
     for {
       scalaDir <- projectHome.files
       sbtDir <- scalaDir.files
